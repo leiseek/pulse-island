@@ -1,0 +1,25 @@
+[workspace]
+members = [
+  "crates/pulse-domain",
+  "crates/pulse-protocol",
+  "crates/pulse-testkit",
+  "crates/pulse-reducer",
+  "crates/pulse-routing",
+  "crates/pulse-fuel",
+  "crates/pulse-arbitration",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+rust-version = "1.78"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
