@@ -1,2 +1,10 @@
 {"ts":"2026-07-01T05:52:38.009Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"Pulse Island Bootstrap","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
 {"ts":"2026-07-01T07:28:03.900Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"Pulse Island W0/W1 Foundation","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"implemented_w0_w1_slice","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"continued_w1_cross_layer_fixtures","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"documented_public_core_api_and_nonallocating_preflight","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_cross_crate_w1_truth_fixtures","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_freshness_and_provider_scoped_fuel_fixtures","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_bounded_island_state_protocol_types","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_w1_storm_and_scale_fixtures","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_route_evidence_freshness_downgrade","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}

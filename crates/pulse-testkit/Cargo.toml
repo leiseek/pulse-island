@@ -1,0 +1,19 @@
+[package]
+name = "pulse-testkit"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pulse-domain = { path = "../pulse-domain" }
+
+[dev-dependencies]
+pulse-fuel = { path = "../pulse-fuel" }
+pulse-arbitration = { path = "../pulse-arbitration" }
+pulse-protocol = { path = "../pulse-protocol" }
+pulse-reducer = { path = "../pulse-reducer" }
+pulse-routing = { path = "../pulse-routing" }
+
+[lints]
+workspace = true
