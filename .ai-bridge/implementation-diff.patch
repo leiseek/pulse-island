@@ -1,148 +1,22 @@
-diff --git a/.ai-bridge/agent-status.md b/.ai-bridge/agent-status.md
-index 6a7c17e..81f719e 100644
---- a/.ai-bridge/agent-status.md
-+++ b/.ai-bridge/agent-status.md
-@@ -5,6 +5,7 @@ Agent: Codex
+Active handoff diff summary for 2026-07-08T00:35:00+08:00.
 
- ## Files touched
+For the full working-tree diff, run:
 
-+- crates/pulse-routing/src/lib.rs
- - crates/pulse-testkit/tests/w1_truth_fixtures.rs
- - .ai-bridge/agent-status.md
- - .ai-bridge/execution-log.jsonl
-@@ -18,7 +19,7 @@ Agent: Codex
+```text
+git diff
+```
 
- ## Results
+Current handoff focus:
 
--Continued W1 fixture coverage for storm and scale scenarios without adding runtime scope. Added fixtures for 10k delayed activity events after terminal completion, 256-task arbitration with bounded Peek output, and repeated invalid preflight rejection with safe categories only.
-+Continued W1 route truthfulness by adding route evidence freshness and explicit downgrade behavior. Stale Exact evidence now resolves to an explicit fallback strength before label selection, and fixtures verify stale Exact routes become useful workspace actions rather than original-task actions.
-
- ## Blockers
-
-@@ -27,4 +28,4 @@ Continued W1 fixture coverage for storm and scale scenarios without adding runti
- ## Review notes
-
- - No provider adapters, provider configuration edits, live Hooks, network, Win32/UI, IPC, persistence, SQLite, transcript/session parsing, or generic utils crate were added.
--- Storm fixtures remain synthetic and do not store or assert raw task content.
-+- Route evidence remains declarative; no window activation or platform route execution was implemented.
-diff --git a/.ai-bridge/execution-log.jsonl b/.ai-bridge/execution-log.jsonl
-index fc987dc..1c8d8da 100644
---- a/.ai-bridge/execution-log.jsonl
-+++ b/.ai-bridge/execution-log.jsonl
-@@ -7,3 +7,4 @@
- {"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_freshness_and_provider_scoped_fuel_fixtures","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
- {"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_bounded_island_state_protocol_types","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
- {"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_w1_storm_and_scale_fixtures","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
-+{"ts":"2026-07-01T00:00:00Z","agent":"codex","event":"added_route_evidence_freshness_downgrade","checks":["cargo fmt --check","cargo test --workspace","cargo clippy --workspace --all-targets"]}
-diff --git a/crates/pulse-routing/src/lib.rs b/crates/pulse-routing/src/lib.rs
-index 1ed2e11..7ac2a27 100644
---- a/crates/pulse-routing/src/lib.rs
-+++ b/crates/pulse-routing/src/lib.rs
-@@ -1,7 +1,7 @@
- //! Route strength to honest action-label policy.
- #![deny(missing_docs)]
-
--use pulse_domain::RouteStrength;
-+use pulse_domain::{RouteStrength, TimestampMs};
-
- /// User-facing route action label selected from route strength.
- #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-@@ -16,6 +16,28 @@ pub enum RouteActionLabel {
-     ShowProcessDetails,
- }
-
-+/// Bounded route evidence with an explicit freshness window.
-+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-+pub struct RouteEvidence {
-+    /// Claimed route strength while evidence is fresh.
-+    pub strength: RouteStrength,
-+    /// Timestamp when the evidence was observed.
-+    pub observed_at: TimestampMs,
-+    /// Time-to-live for this evidence in milliseconds.
-+    pub ttl_ms: u64,
-+}
-+
-+impl RouteEvidence {
-+    /// Construct route evidence with explicit strength and freshness.
-+    pub const fn new(strength: RouteStrength, observed_at: TimestampMs, ttl_ms: u64) -> Self {
-+        Self {
-+            strength,
-+            observed_at,
-+            ttl_ms,
-+        }
-+    }
-+}
-+
- /// Return the strongest honest label allowed for the supplied route strength.
- pub fn label_for(strength: RouteStrength) -> Option<RouteActionLabel> {
-     match strength {
-@@ -27,6 +49,29 @@ pub fn label_for(strength: RouteStrength) -> Option<RouteActionLabel> {
-     }
- }
-
-+/// Downgrade stale route evidence to an explicit fallback strength.
-+pub fn effective_strength(
-+    evidence: RouteEvidence,
-+    now: TimestampMs,
-+    fallback: RouteStrength,
-+) -> RouteStrength {
-+    let age = now.0.saturating_sub(evidence.observed_at.0);
-+    if age > evidence.ttl_ms {
-+        fallback
-+    } else {
-+        evidence.strength
-+    }
-+}
-+
-+/// Return the honest label after freshness-based route downgrade.
-+pub fn label_for_evidence(
-+    evidence: RouteEvidence,
-+    now: TimestampMs,
-+    fallback: RouteStrength,
-+) -> Option<RouteActionLabel> {
-+    label_for(effective_strength(evidence, now, fallback))
-+}
-+
- #[cfg(test)]
- mod tests {
-     use super::*;
-@@ -38,4 +83,13 @@ mod tests {
-             Some(RouteActionLabel::FocusAgentWindow)
-         );
-     }
-+
-+    #[test]
-+    fn stale_exact_route_downgrades_to_fallback_label() {
-+        let evidence = RouteEvidence::new(RouteStrength::Exact, TimestampMs(100), 10);
-+        assert_eq!(
-+            label_for_evidence(evidence, TimestampMs(111), RouteStrength::Useful),
-+            Some(RouteActionLabel::OpenWorkspace)
-+        );
-+    }
- }
-diff --git a/crates/pulse-testkit/tests/w1_truth_fixtures.rs b/crates/pulse-testkit/tests/w1_truth_fixtures.rs
-index 1c2d434..69b540c 100644
---- a/crates/pulse-testkit/tests/w1_truth_fixtures.rs
-+++ b/crates/pulse-testkit/tests/w1_truth_fixtures.rs
-@@ -10,7 +10,7 @@ use pulse_protocol::{
-     admit, AdmittedEvent, EvidenceKind, PulseHookEnvelope, RejectionCategory, PROTOCOL_VERSION,
- };
- use pulse_reducer::{apply_freshness, initial, reduce};
--use pulse_routing::{label_for, RouteActionLabel};
-+use pulse_routing::{label_for, label_for_evidence, RouteActionLabel, RouteEvidence};
- use pulse_testkit::{provider, task, FixedClock};
-
- fn event(
-@@ -369,3 +369,12 @@ fn repeated_invalid_preflight_is_deterministic_and_content_free() {
-         );
-     }
- }
-+
-+#[test]
-+fn stale_exact_route_downgrades_to_useful_workspace_action() {
-+    let exact = RouteEvidence::new(RouteStrength::Exact, TimestampMs(1_000), 100);
-+    assert_eq!(
-+        label_for_evidence(exact, TimestampMs(1_101), RouteStrength::Useful),
-+        Some(RouteActionLabel::OpenWorkspace)
-+    );
-+}
+- W3 remains the active implementation boundary.
+- W0/W1/W2 are accepted sequencing evidence and regression coverage, not active implementation queues.
+- `pulse-link-spike-client` now includes a pipe-backed fake Island message loop seam requiring Island pipe connection before startup.
+- `pulse-win32-link` now includes an MSVC-only OS-backed transport smoke harness for real mutex, ingress pipe, Island pipe, inherited handoff pipe, Island client connection, and six-handle cleanup.
+- `pulse-win32-link` now includes an MSVC-only real ingress named-pipe frame/ack harness for a single encoded frame header.
+- `pulse-link` now includes an MSVC-only OS-backed ingress reducer harness: the real ingress frame/ack path accepts a content-free Hook frame header, drives a synthetic reducer event, writes a checkpoint, and closes native handles.
+- `pulse-win32-link` and `pulse-link` now include an MSVC-only OS-backed multi-frame ingress reducer loop: multiple frames are acknowledged on one named-pipe connection, malformed headers are rejected before reducer mutation, later valid frames continue, and accepted frames checkpoint synthetic reducer state.
+- `pulse-win32-link` and `pulse-link-spike-client` now include an MSVC-only OS-backed Island protocol loop: request/response bytes round-trip on one Island named-pipe connection and bind to fake Island Hello/GetSnapshot/Subscribe/delta/gap recovery.
+- `pulse-link` now includes an MSVC-only OS-backed C8 residue harness: grace expiry writes the final checkpoint, reaches `NotRunning`, closes native transport handles, and observes zero child-process residue.
+- `pulse-link` now includes an MSVC-only OS-backed Spike C C0-C9 aggregate harness covering all ten scenarios while tying transport-specific paths to real mutex/named-pipe/handoff/residue evidence.
+- The W2 review manifest now emits `later_gated_work=...` for provider work that belongs to later gates.
+- W3 has accepted evidence for W4 provider-probe start; the next work is W4 read-only capability discovery with live Hooks/config mutation/provider adapters still gated.
