@@ -1,0 +1,19 @@
+[package]
+name = "pulse-link"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pulse-domain = { path = "../../crates/pulse-domain" }
+pulse-link-core = { path = "../../crates/pulse-link-core" }
+pulse-link-shim = { path = "../pulse-link-shim" }
+pulse-persistence = { path = "../../crates/pulse-persistence" }
+pulse-protocol = { path = "../../crates/pulse-protocol" }
+pulse-reducer = { path = "../../crates/pulse-reducer" }
+pulse-win32 = { path = "../../crates/pulse-win32" }
+pulse-win32-link = { path = "../../crates/pulse-win32-link" }
+
+[lints]
+workspace = true
