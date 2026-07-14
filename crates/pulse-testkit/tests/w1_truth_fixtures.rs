@@ -2,14 +2,16 @@
 
 use pulse_arbitration::arbitrate;
 use pulse_domain::{
-    Attention, Lifecycle, PrivacyProfile, ProcessFingerprint, ProviderReleaseStatus, RouteStrength,
-    SafeSummary, TaskHealth, TaskSnapshot, TimestampMs,
+    Attention, BoundedText, DomainError, FeatureCapability, Lifecycle, PrivacyProfile,
+    ProcessFingerprint, ProviderReleaseStatus, RouteCapability, RouteStrength, SafeSummary,
+    TaskHealth, TaskSnapshot, TimestampMs,
 };
 use pulse_fuel::{FuelLedger, FuelState};
 use pulse_protocol::{
-    admit, AdmittedEvent, EvidenceKind, PulseHookEnvelope, RejectionCategory, PROTOCOL_VERSION,
+    admit, shim_ingress_decision, AdmittedEvent, EvidenceKind, PulseHookEnvelope,
+    RejectionCategory, ShimExitStatus, PROTOCOL_VERSION,
 };
-use pulse_reducer::{apply_freshness, initial, reduce};
+use pulse_reducer::{apply_freshness, initial, reduce, BreadcrumbRetention};
 use pulse_routing::{label_for, label_for_evidence, RouteActionLabel, RouteEvidence};
 use pulse_testkit::{provider, task, FixedClock};
 
@@ -93,6 +95,57 @@ fn route_labels_require_matching_route_strength() {
 }
 
 #[test]
+fn feature_capabilities_are_declared_without_upgrading_release_status(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let waiting = reduce_sequence(
+        "Codex",
+        "feature-waiting",
+        &[EvidenceKind::Waiting],
+        PrivacyProfile::Minimal,
+    )?;
+    assert!(waiting
+        .features
+        .contains(&FeatureCapability::ObserveWaiting));
+    assert_eq!(waiting.provider_status, ProviderReleaseStatus::NotProbed);
+    assert_eq!(waiting.health, TaskHealth::Attached);
+
+    let useful_route = reduce_sequence(
+        "Codex",
+        "feature-workspace",
+        &[EvidenceKind::Route(RouteStrength::Useful)],
+        PrivacyProfile::Minimal,
+    )?;
+    assert!(useful_route
+        .features
+        .contains(&FeatureCapability::OpenWorkspace));
+    assert_eq!(
+        useful_route.route_capability,
+        RouteCapability::WorkspaceReady
+    );
+    assert_eq!(
+        useful_route.provider_status,
+        ProviderReleaseStatus::NotProbed
+    );
+    assert_eq!(useful_route.health, TaskHealth::Observed);
+
+    let exact_route = reduce_sequence(
+        "Codex",
+        "feature-exact",
+        &[EvidenceKind::Route(RouteStrength::Exact)],
+        PrivacyProfile::Minimal,
+    )?;
+    assert!(exact_route
+        .features
+        .contains(&FeatureCapability::OpenExactContext));
+    assert_eq!(exact_route.route_capability, RouteCapability::ContextReady);
+    assert_eq!(
+        exact_route.provider_status,
+        ProviderReleaseStatus::NotProbed
+    );
+    Ok(())
+}
+
+#[test]
 fn strict_terminal_transition_is_not_retained_for_restart() -> Result<(), Box<dyn std::error::Error>>
 {
     let start = event(
@@ -118,6 +171,75 @@ fn strict_terminal_transition_is_not_retained_for_restart() -> Result<(), Box<dy
     assert_eq!(terminal.snapshot.lifecycle, Lifecycle::Completed);
     assert!(!terminal.retain_breadcrumb);
     Ok(())
+}
+
+#[test]
+fn privacy_profiles_produce_explicit_breadcrumb_retention_decisions(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let start = event(
+        "Codex",
+        "retention-task",
+        EvidenceKind::Started,
+        TimestampMs(1),
+    )?;
+    let active_strict = reduce(
+        initial(&start, TimestampMs(1)),
+        &start,
+        TimestampMs(1),
+        PrivacyProfile::Strict,
+    );
+    assert_eq!(active_strict.retention, BreadcrumbRetention::RetainActive);
+
+    let completed = event(
+        "Codex",
+        "retention-task",
+        EvidenceKind::Completed,
+        TimestampMs(2),
+    )?;
+    let terminal_minimal = reduce(
+        active_strict.snapshot.clone(),
+        &completed,
+        TimestampMs(2),
+        PrivacyProfile::Minimal,
+    );
+    assert_eq!(
+        terminal_minimal.retention,
+        BreadcrumbRetention::RetainRecentTerminal
+    );
+
+    let terminal_strict = reduce(
+        active_strict.snapshot.clone(),
+        &completed,
+        TimestampMs(2),
+        PrivacyProfile::Strict,
+    );
+    assert_eq!(
+        terminal_strict.retention,
+        BreadcrumbRetention::TerminalCheckpointOnly
+    );
+
+    let active_passive = reduce(
+        initial(&start, TimestampMs(1)),
+        &start,
+        TimestampMs(1),
+        PrivacyProfile::PassiveOnly,
+    );
+    assert_eq!(active_passive.retention, BreadcrumbRetention::DoNotRetain);
+    assert!(!active_passive.retain_breadcrumb);
+    Ok(())
+}
+
+#[test]
+fn safe_mode_shim_ingress_prevents_link_wake_and_forwarding() {
+    let safe = shim_ingress_decision(true);
+    assert!(!safe.wake_link);
+    assert!(!safe.forward_ingress);
+    assert_eq!(safe.exit_status, ShimExitStatus::Success);
+
+    let normal = shim_ingress_decision(false);
+    assert!(normal.wake_link);
+    assert!(normal.forward_ingress);
+    assert_eq!(normal.exit_status, ShimExitStatus::Success);
 }
 
 #[test]
@@ -147,6 +269,76 @@ fn process_only_antigravity_remains_observed_without_task_semantics(
 }
 
 #[test]
+fn process_observation_does_not_downgrade_attached_running_truth(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let started = event(
+        "Codex",
+        "attached-running",
+        EvidenceKind::Started,
+        TimestampMs(1),
+    )?;
+    let snapshot = reduce(
+        initial(&started, TimestampMs(1)),
+        &started,
+        TimestampMs(1),
+        PrivacyProfile::Minimal,
+    )
+    .snapshot;
+    let observed = event(
+        "Codex",
+        "attached-running",
+        EvidenceKind::ProcessObserved {
+            process: ProcessFingerprint {
+                pid: 11,
+                start_ms: TimestampMs(1),
+            },
+        },
+        TimestampMs(2),
+    )?;
+    let snapshot = reduce(snapshot, &observed, TimestampMs(2), PrivacyProfile::Minimal).snapshot;
+
+    assert_eq!(snapshot.lifecycle, Lifecycle::Running);
+    assert_eq!(snapshot.health, TaskHealth::Attached);
+    assert_eq!(snapshot.summary, SafeSummary::Generic);
+    assert!(snapshot.process.is_some());
+    Ok(())
+}
+
+#[test]
+fn process_exit_without_terminal_evidence_goes_offline_not_completed(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let running = reduce_sequence(
+        "Codex",
+        "process-exit",
+        &[EvidenceKind::Started],
+        PrivacyProfile::Minimal,
+    )?;
+    assert_eq!(running.lifecycle, Lifecycle::Running);
+
+    let exited = event(
+        "Codex",
+        "process-exit",
+        EvidenceKind::ProcessExited,
+        TimestampMs(2_000),
+    )?;
+    let snapshot = reduce(
+        running,
+        &exited,
+        TimestampMs(2_000),
+        PrivacyProfile::Minimal,
+    )
+    .snapshot;
+    assert_eq!(snapshot.health, TaskHealth::Offline);
+    assert_eq!(snapshot.lifecycle, Lifecycle::Unknown);
+    assert_eq!(snapshot.attention, Attention::None);
+    assert!(!matches!(
+        snapshot.lifecycle,
+        Lifecycle::Completed | Lifecycle::Failed
+    ));
+    Ok(())
+}
+
+#[test]
 fn malformed_or_unapproved_input_is_rejected_before_snapshot_mutation(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let start = event(
@@ -172,6 +364,26 @@ fn malformed_or_unapproved_input_is_rejected_before_snapshot_mutation(
     );
     assert_eq!(before.lifecycle, Lifecycle::Unknown);
     Ok(())
+}
+
+#[test]
+fn secret_like_bounded_text_and_frames_are_rejected() {
+    assert_eq!(
+        BoundedText::new("password=abc"),
+        Err(DomainError::ForbiddenContent)
+    );
+    assert_eq!(
+        BoundedText::new("Bearer abc"),
+        Err(DomainError::ForbiddenContent)
+    );
+    assert_eq!(
+        pulse_protocol::preflight_frame(br#"{"credential":"abc"}"#),
+        Err(RejectionCategory::ForbiddenField)
+    );
+    assert_eq!(
+        pulse_protocol::preflight_frame(br#"{"Authorization":"Bearer abc"}"#),
+        Err(RejectionCategory::ForbiddenField)
+    );
 }
 
 #[test]
@@ -210,6 +422,81 @@ fn freshness_degrades_then_fresh_activity_recovers() -> Result<(), Box<dyn std::
 }
 
 #[test]
+fn stale_waiting_can_recover_to_running_on_fresh_activity() -> Result<(), Box<dyn std::error::Error>>
+{
+    let waiting = reduce_sequence(
+        "Codex",
+        "stale-waiting",
+        &[EvidenceKind::Waiting],
+        PrivacyProfile::Minimal,
+    )?;
+    assert_eq!(waiting.lifecycle, Lifecycle::WaitingUser);
+    let degraded = apply_freshness(waiting, TimestampMs(10_000), 100);
+    assert_eq!(degraded.health, TaskHealth::Degraded);
+    assert_eq!(degraded.lifecycle, Lifecycle::WaitingUser);
+
+    let activity = event(
+        "Codex",
+        "stale-waiting",
+        EvidenceKind::Activity,
+        TimestampMs(10_001),
+    )?;
+    let recovered = reduce(
+        degraded,
+        &activity,
+        TimestampMs(10_001),
+        PrivacyProfile::Minimal,
+    )
+    .snapshot;
+    assert_eq!(recovered.lifecycle, Lifecycle::Running);
+    assert_eq!(recovered.attention, Attention::Active);
+    assert_eq!(recovered.health, TaskHealth::Attached);
+    Ok(())
+}
+
+#[test]
+fn resource_stall_ranks_below_fuel_risk_and_above_running() -> Result<(), Box<dyn std::error::Error>>
+{
+    let mut risk = reduce_sequence(
+        "Codex",
+        "fuel-risk",
+        &[EvidenceKind::Started, EvidenceKind::FuelRisk],
+        PrivacyProfile::Minimal,
+    )?;
+    risk.updated_at = TimestampMs(1);
+
+    let mut stalled = reduce_sequence(
+        "Codex",
+        "resource-stall",
+        &[EvidenceKind::Started, EvidenceKind::ResourceStall],
+        PrivacyProfile::Minimal,
+    )?;
+    stalled.updated_at = TimestampMs(2);
+
+    let mut running = reduce_sequence(
+        "Codex",
+        "running",
+        &[EvidenceKind::Started],
+        PrivacyProfile::Minimal,
+    )?;
+    running.updated_at = TimestampMs(3);
+
+    let plan = arbitrate(&[running, stalled, risk], None, TimestampMs(10));
+    assert_eq!(
+        plan.primary
+            .map(|snapshot| snapshot.task_id.0.as_str().to_owned()),
+        Some("fuel-risk".to_owned())
+    );
+    assert_eq!(
+        plan.peek
+            .first()
+            .map(|snapshot| snapshot.task_id.0.as_str().to_owned()),
+        Some("resource-stall".to_owned())
+    );
+    Ok(())
+}
+
+#[test]
 fn fuel_buckets_are_provider_scoped_and_never_aggregated() -> Result<(), Box<dyn std::error::Error>>
 {
     let codex = provider("Codex")?;
@@ -222,6 +509,40 @@ fn fuel_buckets_are_provider_scoped_and_never_aggregated() -> Result<(), Box<dyn
     assert_eq!(ledger.get(&codex).map(|state| state.blocking), Some(false));
     assert_eq!(ledger.get(&claude).map(|state| state.risk), Some(false));
     assert_eq!(ledger.get(&claude).map(|state| state.blocking), Some(true));
+    Ok(())
+}
+
+#[test]
+fn fuel_revoked_removes_verified_limit_claim_without_inventing_running(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let limited = reduce_sequence(
+        "Codex",
+        "revoked-limit",
+        &[EvidenceKind::LimitBlocked],
+        PrivacyProfile::Minimal,
+    )?;
+    assert_eq!(limited.lifecycle, Lifecycle::Limited);
+    assert!(limited.fuel_blocking);
+
+    let revoked = event(
+        "Codex",
+        "revoked-limit",
+        EvidenceKind::FuelRevoked,
+        TimestampMs(2_000),
+    )?;
+    let snapshot = reduce(
+        limited,
+        &revoked,
+        TimestampMs(2_000),
+        PrivacyProfile::Minimal,
+    )
+    .snapshot;
+    assert_eq!(snapshot.lifecycle, Lifecycle::Unknown);
+    assert_eq!(snapshot.attention, Attention::None);
+    assert_eq!(snapshot.summary, SafeSummary::Generic);
+    assert_eq!(snapshot.health, TaskHealth::Degraded);
+    assert!(!snapshot.fuel_blocking);
+    assert!(!snapshot.fuel_risk);
     Ok(())
 }
 
@@ -248,6 +569,37 @@ fn waiting_summary_survives_generic_activity_until_clear() -> Result<(), Box<dyn
 }
 
 #[test]
+fn failed_terminal_summary_survives_late_completed_event() -> Result<(), Box<dyn std::error::Error>>
+{
+    let failed = reduce_sequence(
+        "Codex",
+        "failed-terminal",
+        &[EvidenceKind::Failed],
+        PrivacyProfile::Minimal,
+    )?;
+    assert_eq!(failed.lifecycle, Lifecycle::Failed);
+    assert_eq!(failed.summary, SafeSummary::Failed);
+
+    let completed = event(
+        "Codex",
+        "failed-terminal",
+        EvidenceKind::Completed,
+        TimestampMs(2_000),
+    )?;
+    let snapshot = reduce(
+        failed,
+        &completed,
+        TimestampMs(2_000),
+        PrivacyProfile::Minimal,
+    )
+    .snapshot;
+    assert_eq!(snapshot.lifecycle, Lifecycle::Failed);
+    assert_eq!(snapshot.attention, Attention::Failed);
+    assert_eq!(snapshot.summary, SafeSummary::Failed);
+    Ok(())
+}
+
+#[test]
 fn island_reconnect_protocol_is_snapshot_and_delta_only() -> Result<(), Box<dyn std::error::Error>>
 {
     use pulse_protocol::{
@@ -262,7 +614,7 @@ fn island_reconnect_protocol_is_snapshot_and_delta_only() -> Result<(), Box<dyn 
     )?;
     let full = FullSnapshot::new(1, vec![snapshot.clone()])?;
     let delta = SnapshotDelta::new(2, vec![snapshot], Vec::new())?;
-    let messages = vec![
+    let messages = [
         IslandMessage::FullSnapshot(full),
         IslandMessage::SnapshotDelta(delta),
         IslandMessage::LinkHealth {

@@ -25,9 +25,18 @@ impl BoundedText {
 }
 fn looks_forbidden(value: &str) -> bool {
     let lower = value.to_ascii_lowercase();
-    ["prompt", "transcript", "api_key", "secret", "token="]
-        .iter()
-        .any(|needle| lower.contains(needle))
+    [
+        "prompt",
+        "transcript",
+        "api_key",
+        "secret",
+        "token=",
+        "password",
+        "credential",
+        "bearer",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
 }
 
 /// Domain constructor error safe for logs and tests.
@@ -236,6 +245,8 @@ pub struct TaskSnapshot {
     pub fuel_blocking: bool,
     /// Non-blocking Fuel risk flag.
     pub fuel_risk: bool,
+    /// Confirmed local resource condition is causally stalling the task.
+    pub resource_stall: bool,
     /// Last update time.
     pub updated_at: TimestampMs,
 }
@@ -256,6 +267,7 @@ impl TaskSnapshot {
             process: None,
             fuel_blocking: false,
             fuel_risk: false,
+            resource_stall: false,
             updated_at: now,
         }
     }

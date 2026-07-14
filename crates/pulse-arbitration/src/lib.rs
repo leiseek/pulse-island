@@ -21,6 +21,7 @@ fn tier(s: &TaskSnapshot, pinned: bool) -> u8 {
         Lifecycle::Limited if s.fuel_blocking => 3,
         _ if pinned => 4,
         _ if s.fuel_risk => 5,
+        _ if s.resource_stall => 6,
         Lifecycle::Running => 7,
         Lifecycle::Completed => 8,
         Lifecycle::Observed | Lifecycle::Unknown | Lifecycle::Limited => 9,
@@ -37,7 +38,7 @@ pub fn arbitrate(
     ranked.sort_by_key(|s| {
         (
             tier(s, pinned_task == Some(s.task_id.0.as_str())),
-            s.updated_at.0,
+            core::cmp::Reverse(s.updated_at.0),
             s.task_id.0.as_str().to_owned(),
         )
     });
@@ -123,6 +124,22 @@ mod tests {
             Some("wait".to_owned())
         );
         assert_eq!(p.peek.len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn same_tier_prefers_newer_activity() -> Result<(), Box<dyn std::error::Error>> {
+        let mut older = snap("older", Lifecycle::Running)?;
+        older.updated_at = TimestampMs(1);
+        let mut newer = snap("newer", Lifecycle::Running)?;
+        newer.updated_at = TimestampMs(2);
+
+        assert_eq!(
+            arbitrate(&[older, newer], None, TimestampMs(3))
+                .primary
+                .map(|s| s.task_id.0.as_str().to_owned()),
+            Some("newer".to_owned())
+        );
         Ok(())
     }
 }

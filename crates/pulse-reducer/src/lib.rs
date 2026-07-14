@@ -8,8 +8,23 @@ use pulse_protocol::{AdmittedEvent, EvidenceKind};
 pub struct ReductionResult {
     /// Updated compact task snapshot.
     pub snapshot: TaskSnapshot,
+    /// Exact privacy-profile retention decision for persistence seams.
+    pub retention: BreadcrumbRetention,
     /// Whether persistence is allowed to retain a compact breadcrumb.
     pub retain_breadcrumb: bool,
+}
+
+/// Privacy-profile-aware breadcrumb retention decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BreadcrumbRetention {
+    /// Retain a nonterminal active-task breadcrumb.
+    RetainActive,
+    /// Minimal profile may retain a bounded recent-terminal breadcrumb.
+    RetainRecentTerminal,
+    /// Strict profile may checkpoint terminal state only for the atomic transition.
+    TerminalCheckpointOnly,
+    /// Do not retain or create an integration breadcrumb.
+    DoNotRetain,
 }
 
 /// Construct an initial generic snapshot for an admitted event.
@@ -31,15 +46,24 @@ pub fn reduce(
     let was_terminal = prior.lifecycle.is_terminal();
     match &event.evidence {
         EvidenceKind::ProcessObserved { process } => {
-            prior.provider_status = ProviderReleaseStatus::ProcessObserved;
-            prior.health = TaskHealth::Observed;
-            prior.summary = SafeSummary::ObservedProcess;
+            if prior.provider_status == ProviderReleaseStatus::NotProbed {
+                prior.provider_status = ProviderReleaseStatus::ProcessObserved;
+            }
             prior.process = Some(process.clone());
             if !was_terminal && matches!(prior.lifecycle, Lifecycle::Unknown) {
                 prior.lifecycle = Lifecycle::Observed;
+                prior.health = TaskHealth::Observed;
+                prior.summary = SafeSummary::ObservedProcess;
             }
             if matches!(prior.route_strength, RouteStrength::None) {
                 prior.route_strength = RouteStrength::Weak;
+            }
+        }
+        EvidenceKind::ProcessExited => {
+            if !prior.lifecycle.is_terminal() {
+                prior.lifecycle = Lifecycle::Unknown;
+                prior.health = TaskHealth::Offline;
+                prior.attention = Attention::None;
             }
         }
         EvidenceKind::Started => {
@@ -50,8 +74,11 @@ pub fn reduce(
             }
         }
         EvidenceKind::Activity => {
+            let stale_waiting =
+                prior.lifecycle == Lifecycle::WaitingUser && prior.health == TaskHealth::Degraded;
             if !was_terminal
-                && !matches!(prior.lifecycle, Lifecycle::WaitingUser | Lifecycle::Limited)
+                && (!matches!(prior.lifecycle, Lifecycle::WaitingUser | Lifecycle::Limited)
+                    || stale_waiting)
             {
                 prior.lifecycle = Lifecycle::Running;
                 prior.health = TaskHealth::Attached;
@@ -64,6 +91,7 @@ pub fn reduce(
                 prior.health = TaskHealth::Attached;
                 prior.attention = Attention::Waiting;
                 prior.summary = SafeSummary::WaitingForUser;
+                add_feature(&mut prior, FeatureCapability::ObserveWaiting);
             }
         }
         EvidenceKind::WaitingCleared => {
@@ -73,8 +101,10 @@ pub fn reduce(
             }
         }
         EvidenceKind::Completed => {
-            prior.lifecycle = Lifecycle::Completed;
-            prior.attention = Attention::None;
+            if prior.lifecycle != Lifecycle::Failed {
+                prior.lifecycle = Lifecycle::Completed;
+                prior.attention = Attention::None;
+            }
         }
         EvidenceKind::Failed => {
             prior.lifecycle = Lifecycle::Failed;
@@ -92,26 +122,63 @@ pub fn reduce(
         EvidenceKind::FuelRisk => {
             prior.fuel_risk = true;
         }
+        EvidenceKind::ResourceStall => {
+            if !was_terminal {
+                prior.resource_stall = true;
+            }
+        }
         EvidenceKind::FuelRevoked => {
             prior.fuel_risk = false;
             prior.fuel_blocking = false;
+            if prior.lifecycle == Lifecycle::Limited {
+                prior.lifecycle = Lifecycle::Unknown;
+                prior.attention = Attention::None;
+                prior.summary = SafeSummary::Generic;
+                prior.health = TaskHealth::Degraded;
+            }
         }
         EvidenceKind::Route(strength) => {
             prior.route_strength = *strength;
             prior.route_capability = match strength {
-                RouteStrength::Exact => RouteCapability::ContextReady,
+                RouteStrength::Exact => {
+                    add_feature(&mut prior, FeatureCapability::OpenExactContext);
+                    RouteCapability::ContextReady
+                }
                 RouteStrength::Strong => RouteCapability::AgentReady,
-                RouteStrength::Useful => RouteCapability::WorkspaceReady,
+                RouteStrength::Useful => {
+                    add_feature(&mut prior, FeatureCapability::OpenWorkspace);
+                    RouteCapability::WorkspaceReady
+                }
                 RouteStrength::Weak | RouteStrength::None => RouteCapability::None,
             };
         }
     }
     prior.updated_at = now;
-    let retain_breadcrumb = !(privacy == PrivacyProfile::Strict && prior.lifecycle.is_terminal())
-        && privacy != PrivacyProfile::PassiveOnly;
+    let retention = retention_decision(privacy, prior.lifecycle);
+    let retain_breadcrumb = matches!(
+        retention,
+        BreadcrumbRetention::RetainActive | BreadcrumbRetention::RetainRecentTerminal
+    );
     ReductionResult {
         snapshot: prior,
+        retention,
         retain_breadcrumb,
+    }
+}
+
+fn add_feature(snapshot: &mut TaskSnapshot, feature: FeatureCapability) {
+    if !snapshot.features.contains(&feature) {
+        snapshot.features.push(feature);
+    }
+}
+
+fn retention_decision(privacy: PrivacyProfile, lifecycle: Lifecycle) -> BreadcrumbRetention {
+    match (privacy, lifecycle.is_terminal()) {
+        (PrivacyProfile::PassiveOnly, _) => BreadcrumbRetention::DoNotRetain,
+        (PrivacyProfile::Strict, true) => BreadcrumbRetention::TerminalCheckpointOnly,
+        (PrivacyProfile::Strict, false) => BreadcrumbRetention::RetainActive,
+        (PrivacyProfile::Minimal, true) => BreadcrumbRetention::RetainRecentTerminal,
+        (PrivacyProfile::Minimal, false) => BreadcrumbRetention::RetainActive,
     }
 }
 

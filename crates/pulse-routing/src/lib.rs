@@ -8,11 +8,48 @@ use pulse_domain::{RouteStrength, TimestampMs};
 pub enum RouteActionLabel {
     /// Exact-only action that returns to the original task/thread/tab.
     OpenOriginalTask,
+    /// Exact-only action for a documented provider thread route.
+    OpenProviderThread,
+    /// Exact-only action for a verified terminal tab/session route.
+    FocusTerminalTab,
     /// Strong route action for a related agent/provider window.
     FocusAgentWindow,
+    /// Strong route action for a related terminal without exact tab proof.
+    FocusRelatedTerminal,
     /// Useful route action for a verified workspace.
     OpenWorkspace,
+    /// Useful route action for revealing a verified project folder.
+    RevealProjectFolder,
+    /// Useful route action for opening a provider/agent surface.
+    OpenAgent,
+    /// Useful route action for opening an official usage surface.
+    OpenOfficialUsage,
     /// Weak route action for process-only evidence.
+    ShowProcessDetails,
+}
+
+/// Provider-neutral route kind declared by routing evidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RouteKind {
+    /// Generic exact original-task route.
+    OpenOriginalTask,
+    /// Documented provider task/thread route.
+    OpenProviderThread,
+    /// Verified exact terminal tab/session route.
+    FocusTerminalTab,
+    /// Validated related provider/agent window.
+    FocusAgentWindow,
+    /// Validated related terminal without exact tab proof.
+    FocusRelatedTerminal,
+    /// Verified workspace route.
+    OpenWorkspace,
+    /// Verified folder reveal route.
+    RevealProjectFolder,
+    /// Verified provider/agent surface route.
+    OpenAgent,
+    /// Verified official usage destination.
+    OpenOfficialUsage,
+    /// Weak safe process details surface.
     ShowProcessDetails,
 }
 
@@ -46,6 +83,39 @@ pub fn label_for(strength: RouteStrength) -> Option<RouteActionLabel> {
         RouteStrength::Useful => Some(RouteActionLabel::OpenWorkspace),
         RouteStrength::Weak => Some(RouteActionLabel::ShowProcessDetails),
         RouteStrength::None => None,
+    }
+}
+
+/// Return an honest route label only when the kind is allowed for the supplied strength.
+pub fn label_for_kind(strength: RouteStrength, kind: RouteKind) -> Option<RouteActionLabel> {
+    match (strength, kind) {
+        (RouteStrength::Exact, RouteKind::OpenOriginalTask) => {
+            Some(RouteActionLabel::OpenOriginalTask)
+        }
+        (RouteStrength::Exact, RouteKind::OpenProviderThread) => {
+            Some(RouteActionLabel::OpenProviderThread)
+        }
+        (RouteStrength::Exact, RouteKind::FocusTerminalTab) => {
+            Some(RouteActionLabel::FocusTerminalTab)
+        }
+        (RouteStrength::Strong, RouteKind::FocusAgentWindow) => {
+            Some(RouteActionLabel::FocusAgentWindow)
+        }
+        (RouteStrength::Strong, RouteKind::FocusRelatedTerminal) => {
+            Some(RouteActionLabel::FocusRelatedTerminal)
+        }
+        (RouteStrength::Useful, RouteKind::OpenWorkspace) => Some(RouteActionLabel::OpenWorkspace),
+        (RouteStrength::Useful, RouteKind::RevealProjectFolder) => {
+            Some(RouteActionLabel::RevealProjectFolder)
+        }
+        (RouteStrength::Useful, RouteKind::OpenAgent) => Some(RouteActionLabel::OpenAgent),
+        (RouteStrength::Useful, RouteKind::OpenOfficialUsage) => {
+            Some(RouteActionLabel::OpenOfficialUsage)
+        }
+        (RouteStrength::Weak, RouteKind::ShowProcessDetails) => {
+            Some(RouteActionLabel::ShowProcessDetails)
+        }
+        _ => None,
     }
 }
 
@@ -90,6 +160,42 @@ mod tests {
         assert_eq!(
             label_for_evidence(evidence, TimestampMs(111), RouteStrength::Useful),
             Some(RouteActionLabel::OpenWorkspace)
+        );
+    }
+
+    #[test]
+    fn route_kind_labels_must_match_strength() {
+        assert_eq!(
+            label_for_kind(RouteStrength::Exact, RouteKind::OpenProviderThread),
+            Some(RouteActionLabel::OpenProviderThread)
+        );
+        assert_eq!(
+            label_for_kind(RouteStrength::Exact, RouteKind::FocusTerminalTab),
+            Some(RouteActionLabel::FocusTerminalTab)
+        );
+        assert_eq!(
+            label_for_kind(RouteStrength::Strong, RouteKind::FocusRelatedTerminal),
+            Some(RouteActionLabel::FocusRelatedTerminal)
+        );
+        assert_eq!(
+            label_for_kind(RouteStrength::Useful, RouteKind::RevealProjectFolder),
+            Some(RouteActionLabel::RevealProjectFolder)
+        );
+        assert_eq!(
+            label_for_kind(RouteStrength::Useful, RouteKind::OpenAgent),
+            Some(RouteActionLabel::OpenAgent)
+        );
+        assert_eq!(
+            label_for_kind(RouteStrength::Useful, RouteKind::OpenOfficialUsage),
+            Some(RouteActionLabel::OpenOfficialUsage)
+        );
+        assert_eq!(
+            label_for_kind(RouteStrength::Strong, RouteKind::OpenOriginalTask),
+            None
+        );
+        assert_eq!(
+            label_for_kind(RouteStrength::Strong, RouteKind::FocusTerminalTab),
+            None
         );
     }
 }

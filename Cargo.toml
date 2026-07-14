@@ -7,6 +7,17 @@ members = [
   "crates/pulse-routing",
   "crates/pulse-fuel",
   "crates/pulse-arbitration",
+  "crates/pulse-island-ui",
+  "crates/pulse-win32",
+  "crates/pulse-win32-hwnd",
+  "crates/pulse-win32-link",
+  "crates/pulse-link-core",
+  "crates/pulse-persistence",
+  "apps/pulse-island-spike",
+  "apps/pulse-link",
+  "apps/pulse-link-shim",
+  "apps/pulse-link-spike-client",
+  "apps/pulse-island",
 ]
 resolver = "2"
 

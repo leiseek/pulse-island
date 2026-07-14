@@ -4,7 +4,7 @@
 use pulse_domain::{BoundedText, ProcessFingerprint, RouteStrength, TaskSnapshot, TimestampMs};
 
 /// Maximum accepted ingress frame size in bytes.
-pub const MAX_FRAME_BYTES: usize = 4096;
+pub const MAX_FRAME_BYTES: usize = 8 * 1024;
 /// Current protocol schema version.
 pub const PROTOCOL_VERSION: u16 = 1;
 /// Maximum task snapshots carried by one island-facing state message.
@@ -48,6 +48,8 @@ pub enum EvidenceKind {
         /// PID plus process start time, never command line.
         process: ProcessFingerprint,
     },
+    /// Observed process exit without provider terminal evidence.
+    ProcessExited,
     /// Formal task start evidence.
     Started,
     /// Formal ordinary activity evidence.
@@ -64,6 +66,8 @@ pub enum EvidenceKind {
     LimitBlocked,
     /// Non-blocking high-confidence Fuel warning.
     FuelRisk,
+    /// Confirmed local resource condition is causally stalling the task.
+    ResourceStall,
     /// Fuel source is stale or revoked; lifecycle must not change.
     FuelRevoked,
     /// Route evidence with declared strength.
@@ -126,6 +130,105 @@ pub fn admit(envelope: PulseHookEnvelope) -> Result<AdmittedEvent, RejectionCate
     })
 }
 
+/// Encode a bounded admitted event for local Link ingress without retaining raw Hook JSON.
+pub fn encode_ingress_payload(event: &AdmittedEvent) -> Result<Vec<u8>, RejectionCategory> {
+    let evidence = match event.evidence {
+        EvidenceKind::Started => 1_u8,
+        EvidenceKind::Activity => 2_u8,
+        EvidenceKind::Waiting => 3_u8,
+        _ => return Err(RejectionCategory::Malformed),
+    };
+    let provider = event.provider.as_str().as_bytes();
+    let task = event.task.as_str().as_bytes();
+    let provider_length = u8::try_from(provider.len()).map_err(|_| RejectionCategory::Malformed)?;
+    let task_length = u8::try_from(task.len()).map_err(|_| RejectionCategory::Malformed)?;
+    let mut encoded = Vec::with_capacity(12 + provider.len() + task.len());
+    encoded.push(1);
+    encoded.push(evidence);
+    encoded.extend_from_slice(&event.occurred_at.0.to_le_bytes());
+    encoded.push(provider_length);
+    encoded.push(task_length);
+    encoded.extend_from_slice(provider);
+    encoded.extend_from_slice(task);
+    if encoded.len() > MAX_FRAME_BYTES {
+        return Err(RejectionCategory::Oversized);
+    }
+    Ok(encoded)
+}
+
+/// Decode one bounded local Link ingress payload into an admitted event.
+pub fn decode_ingress_payload(input: &[u8]) -> Result<AdmittedEvent, RejectionCategory> {
+    if input.len() < 12 || input.len() > MAX_FRAME_BYTES || input[0] != 1 {
+        return Err(RejectionCategory::Malformed);
+    }
+    let evidence = match input[1] {
+        1 => EvidenceKind::Started,
+        2 => EvidenceKind::Activity,
+        3 => EvidenceKind::Waiting,
+        _ => return Err(RejectionCategory::Malformed),
+    };
+    let occurred_at = TimestampMs(u64::from_le_bytes(
+        input[2..10]
+            .try_into()
+            .map_err(|_| RejectionCategory::Malformed)?,
+    ));
+    let provider_length = usize::from(input[10]);
+    let task_length = usize::from(input[11]);
+    let expected = 12_usize
+        .checked_add(provider_length)
+        .and_then(|value| value.checked_add(task_length))
+        .ok_or(RejectionCategory::Malformed)?;
+    if input.len() != expected {
+        return Err(RejectionCategory::Malformed);
+    }
+    let provider_end = 12 + provider_length;
+    let provider =
+        std::str::from_utf8(&input[12..provider_end]).map_err(|_| RejectionCategory::Malformed)?;
+    let task =
+        std::str::from_utf8(&input[provider_end..]).map_err(|_| RejectionCategory::Malformed)?;
+    Ok(AdmittedEvent {
+        provider: BoundedText::new(provider).map_err(|_| RejectionCategory::Malformed)?,
+        task: BoundedText::new(task).map_err(|_| RejectionCategory::Malformed)?,
+        evidence,
+        occurred_at,
+    })
+}
+
+/// Safe Shim process exit status category.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShimExitStatus {
+    /// Shim exits successfully so provider-native execution remains fail-open.
+    Success,
+}
+
+/// Pure decision for the earliest Pulse-owned Shim boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShimIngressDecision {
+    /// Whether the Shim may wake pulse-link.
+    pub wake_link: bool,
+    /// Whether the Shim may forward the bounded ingress envelope.
+    pub forward_ingress: bool,
+    /// Safe process exit category.
+    pub exit_status: ShimExitStatus,
+}
+
+/// Decide Shim behavior from the current-user Safe Mode flag.
+pub const fn shim_ingress_decision(safe_mode_enabled: bool) -> ShimIngressDecision {
+    if safe_mode_enabled {
+        ShimIngressDecision {
+            wake_link: false,
+            forward_ingress: false,
+            exit_status: ShimExitStatus::Success,
+        }
+    } else {
+        ShimIngressDecision {
+            wake_link: true,
+            forward_ingress: true,
+            exit_status: ShimExitStatus::Success,
+        }
+    }
+}
+
 /// Validate raw bytes before allocation-heavy parsing. This intentionally supports only a
 /// tiny synthetic test shape and returns a category, never raw data.
 pub fn preflight_frame(frame: &[u8]) -> Result<(), RejectionCategory> {
@@ -137,6 +240,9 @@ pub fn preflight_frame(frame: &[u8]) -> Result<(), RejectionCategory> {
         b"transcript".as_slice(),
         b"api_key".as_slice(),
         b"secret".as_slice(),
+        b"password".as_slice(),
+        b"credential".as_slice(),
+        b"bearer".as_slice(),
     ] {
         if frame.windows(forbidden.len()).any(|window| {
             window
@@ -282,5 +388,20 @@ mod tests {
             SnapshotDelta::new(1, Vec::new(), removals),
             Err(RejectionCategory::SnapshotTooLarge)
         );
+    }
+
+    #[test]
+    fn ingress_payload_round_trips_safe_identity_and_evidence(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let event = AdmittedEvent {
+            provider: BoundedText::new("codex_cli")?,
+            task: BoundedText::new("session-123")?,
+            evidence: EvidenceKind::Waiting,
+            occurred_at: TimestampMs(42),
+        };
+
+        let encoded = encode_ingress_payload(&event)?;
+        assert_eq!(decode_ingress_payload(&encoded)?, event);
+        Ok(())
     }
 }
