@@ -1,0 +1,22 @@
+{
+  "product": "Pulse Island",
+  "version": "1.0.0-rc1",
+  "platform": "windows-x64",
+  "install_scope": "per_user",
+  "requires_service": false,
+  "modifies_path": false,
+  "provider_integration": "explicit_opt_in",
+  "binaries": [
+    "pulse-link-shim.exe",
+    "pulse-link.exe",
+    "pulse-island.exe"
+  ],
+  "state_root": "%LOCALAPPDATA%\\PulseIsland",
+  "uninstall": {
+    "remove_owned_state": true,
+    "remove_only_owned_provider_hook": true,
+    "preserve_unrelated_provider_config": true,
+    "stop_provider_processes": false
+  },
+  "release_gate": "docs/pulse-island/26-v1-release-gate.md"
+}
