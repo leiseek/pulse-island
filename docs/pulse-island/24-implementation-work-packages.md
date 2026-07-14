@@ -9,7 +9,7 @@
 
 ## 1. Purpose
 
-This is the canonical implementation order for Pulse Island. Earlier Gate/Spike documents describe proof goals; this document decides what may begin, what may parallelize, and what is blocked.
+This is the canonical implementation order for Pulse Island. Earlier Gate/Spike documents describe proof goals; this document decides what may begin, what may parallelize, and what is gated for later work.
 
 A work package is complete only when its truth, privacy, resource, failure, and test obligations are proven.
 
@@ -140,6 +140,7 @@ pulse-win32 minimal window/DPI/hotkey primitives
 pulse-island-ui
 apps/pulse-island-spike
 performance fixture harness
+mock compositor animation policy
 ```
 
 ### Required outcomes
@@ -305,15 +306,29 @@ A package is complete only when:
 
 ## 12. Active work boundary
 
-Implementation currently authorizes only:
+Implementation currently authorizes:
 
 ```text
-W0 + first slice of W1
+W4 Provider Probe Harness
 ```
 
-That means provider-neutral workspace foundation, core domain/protocol types, deterministic reducer fixtures, and the taxonomy/priority/retention/Safe Mode contracts from `25`.
+W0/W1/W2 have deterministic gate evidence in `W1-GATE-AUDIT.md` and `W2-GATE-AUDIT.md`. W3 has accepted evidence in `W3-GATE-AUDIT.md` for W4 provider-probe start. The current active boundary is W4 under `15-provider-capability-probe.md` and the provider-specific Probe Cards.
 
-It does not authorize live Hook installation, provider configuration changes, real Fuel collection, provider process control, production route activation, or arbitrary local-state parsing.
+Do not use older review prose or archived handoff notes to reopen W0/W1/W2/W3 before W4. W2 and W3 have no current implementation tasks unless a fresh regression test fails. If sequencing text conflicts, the current authority order is `25-consistency-closure.md`, this work-package map, `W2-GATE-AUDIT.md`, and `W3-GATE-AUDIT.md`.
+
+W4 work means provider-neutral, read-only capability discovery and report scaffolding:
+
+```text
+provider report skeletons
+environment/category manifests
+capability matrices
+known limitation summaries
+resource figure placeholders
+release recommendation labels
+synthetic config transaction fixtures
+```
+
+It still does not authorize live provider Hook installation, provider configuration changes, provider adapters, real Fuel collection, provider process control, production route activation, network/App Server queries, transcript/session parsing, or arbitrary local-state parsing.
 
 ---
 

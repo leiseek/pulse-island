@@ -121,11 +121,10 @@ Codex Hook schemas do not need arbitrary unknown metadata keys. Pulse identifies
 
 ```text
 pulse-link-shim.exe
---provider codex-cli
---integration-id <non-secret Pulse installation identifier>
+--provider codex_cli
 ```
 
-The integration identifier is not an account credential and not a task/session identifier. It is used only to locate the exact Pulse-owned command entry during update and uninstall.
+The current executable signature is the provider flag plus the installation scope. A future installer may add a non-secret integration identifier; it must never be an account credential or task/session identifier.
 
 ### 4.3 Command configuration rules
 

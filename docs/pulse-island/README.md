@@ -69,12 +69,16 @@ Before using any earlier document as an implementation source, read:
 
 | File | Role |
 |---|---|
-| `10-verification-gates-and-mvp-roadmap.md` | Gate A–H roadmap and release vocabulary. Canonical work order is `24`. |
+| `10-verification-gates-and-mvp-roadmap.md` | Gate A-H roadmap and release vocabulary. Canonical work order is `24`. |
 | `11-rust-workspace-architecture.md` | Crate boundaries, dependency rules, test topology. |
 | `12-spike-a-native-signal-benchmark.md` | Native UI resource and behavior proof. |
 | `13-spike-b-state-kernel.md` | Deterministic truth-fixture proof. |
+| `W1-GATE-AUDIT.md` | Current W1 truth-kernel evidence map and sequencing readiness. |
+| `W2-GATE-AUDIT.md` | W2 Native Signal Shell regression evidence map; W4 sequencing is authorized through accepted W3 evidence. |
+| `W3-GATE-AUDIT.md` | W3 Link/Shim/Drop Mode regression evidence map; W4 Provider Probe Harness is authorized. |
+| `W4-PROBE-HARNESS-AUDIT.md` | Current W4 read-only provider probe harness evidence map. |
 | `18-first-adapter-selection-and-bootstrap.md` | Shared bootstrap and evidence-led first adapter selection. |
-| `24-implementation-work-packages.md` | Canonical W0–W6 implementation packages, review gates, active code boundary. |
+| `24-implementation-work-packages.md` | Canonical W0-W6 implementation packages, review gates, active code boundary. |
 
 ### Provider probe cards
 
@@ -115,6 +119,8 @@ W0 Workspace Foundation
 ```
 
 W2 may begin after W0 contracts and the mock `PresentationPlan` seam are stable. W3 begins only after W1 truth fixtures pass.
+
+Current repository state: W0/W1/W2/W3 have accepted gate evidence for W4 sequencing. The active implementation boundary is W4 Provider Probe Harness in read-only capability-discovery mode. Older review notes about W0/W1/W2/W3 readiness are historical closure records, not active task queues or reasons to rerun earlier work unless a fresh regression fails.
 
 The local implementation handoff lives in `.ai-bridge/current-plan.md`.
 

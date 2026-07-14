@@ -3,7 +3,7 @@
 **Status:** Normative correction layer  
 **Applies to:** All Pulse Island design documents `00` through `24`, README, and implementation handoffs  
 **Precedence:** This document supersedes any earlier conflicting statement in the listed documents.  
-**Last updated:** 2026-07-01
+**Last updated:** 2026-07-07
 
 ---
 
@@ -11,7 +11,7 @@
 
 The Pulse Island design package was reviewed end-to-end after the initial architecture pass. The review found no need to redesign the product, but it did identify several places where older overview wording diverged from later, more evidence-based contracts.
 
-This document closes those gaps before implementation moves beyond provider-neutral foundation work.
+This document closes those gaps before and during provider-neutral implementation work.
 
 > Provider capability, Fuel capability, route certainty, task state, and integration health are independent axes.
 
@@ -413,13 +413,15 @@ Add these to the appropriate Spike / work-package test suites before W5 begins:
 
 ### Work permitted now
 
-- W0 workspace foundation.
-- W1 domain, protocol, reducer, routing declarations, arbitration, and fixtures incorporating this document.
-- W2 mock-native UI work using only capability/route labels defined here.
+- W4 Provider Probe Harness in read-only capability-discovery mode.
+- W0/W1/W2/W3 are accepted as sequencing prerequisites for W4; their audit docs remain regression evidence, not active work queues.
+- W4 report scaffolding must follow `15-provider-capability-probe.md` and the provider-specific Probe Cards while avoiding live provider mutation or support claims.
 
-### Work blocked until later gates
+### Later-gated work
 
 - Live provider Hook installation.
+- Provider configuration mutation.
+- Provider adapter implementation.
 - Provider Fuel collection.
 - Exact/strong route activation implementation.
 - Production Link IPC that deviates from `14`.
