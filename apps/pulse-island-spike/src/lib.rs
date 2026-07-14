@@ -1697,6 +1697,7 @@ impl SyntheticConfigTransactionFixture {
     }
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_config_transaction_fixture_diagnostics(provider: ProbeProvider) -> String {
     SyntheticConfigTransactionFixture::passing(provider).diagnostics()
 }
@@ -1891,10 +1892,12 @@ impl ProviderEvidenceRegister {
     }
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_evidence_register_diagnostics(provider: ProbeProvider) -> String {
     ProviderEvidenceRegister::sanitized_summary(provider).diagnostics()
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_official_evidence_source_locator_diagnostics(provider: ProbeProvider) -> String {
     [
         "official_evidence_source_locator_version=1".to_owned(),
@@ -1998,10 +2001,12 @@ impl SanitizedProbeSummaryFixture {
     }
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_probe_summary_fixture_diagnostics(provider: ProbeProvider) -> String {
     SanitizedProbeSummaryFixture::for_provider(provider).diagnostics()
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_probe_scorecard_fixture_diagnostics() -> String {
     [
         "scorecard_version=1".to_owned(),
@@ -2019,6 +2024,7 @@ fn provider_probe_scorecard_fixture_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_release_label_evaluation_fixture_diagnostics() -> String {
     [
         "release_label_evaluation_version=1".to_owned(),
@@ -2044,6 +2050,7 @@ fn provider_release_label_evaluation_fixture_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_probe_phase_status_diagnostics(provider: ProbeProvider) -> String {
     [
         "probe_phase_status_version=1".to_owned(),
@@ -2074,6 +2081,7 @@ fn provider_probe_phase_status_diagnostics(provider: ProbeProvider) -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_hard_disqualifier_fixture_diagnostics() -> String {
     [
         "hard_disqualifier_version=1".to_owned(),
@@ -2092,6 +2100,7 @@ fn provider_hard_disqualifier_fixture_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_evidence_gap_summary_diagnostics() -> String {
     let providers = [
         ProbeProvider::CodexCli,
@@ -2215,6 +2224,7 @@ fn provider_probe_audit_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_surface_inventory_diagnostics() -> String {
     [
         "surface_inventory_version=1".to_owned(),
@@ -2235,6 +2245,7 @@ fn provider_surface_inventory_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_probe_readiness_diagnostics() -> String {
     [
         "probe_readiness_version=1".to_owned(),
@@ -2276,6 +2287,7 @@ fn provider_probe_readiness_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_local_environment_manifest_diagnostics() -> String {
     [
         "local_environment_manifest_version=1".to_owned(),
@@ -2294,6 +2306,7 @@ fn provider_local_environment_manifest_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_live_probe_dry_run_diagnostics() -> String {
     [
         "live_probe_dry_run_version=1".to_owned(),
@@ -2519,6 +2532,7 @@ fn provider_live_probe_summary_diagnostics() -> String {
     lines.join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_resource_measurement_plan_diagnostics() -> String {
     let mut lines = vec![
         "resource_measurement_plan_version=1".to_owned(),
@@ -2582,6 +2596,7 @@ fn provider_direct_gates() -> [ProviderDirectGate; 7] {
     ]
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_direct_gate_packet_diagnostics(provider: ProbeProvider) -> String {
     let mut lines = vec![
         "direct_gate_packet_version=1".to_owned(),
@@ -2610,6 +2625,7 @@ fn provider_direct_gate_packet_diagnostics(provider: ProbeProvider) -> String {
     lines.join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_direct_evidence_import_checklist_diagnostics(provider: ProbeProvider) -> String {
     let mut lines = vec![
         "direct_evidence_import_checklist_version=1".to_owned(),
@@ -2634,6 +2650,7 @@ fn provider_direct_evidence_import_checklist_diagnostics(provider: ProbeProvider
     lines.join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_authorized_evidence_runbook_diagnostics(provider: ProbeProvider) -> String {
     let mut lines = vec![
         "authorized_evidence_runbook_version=1".to_owned(),
@@ -2673,6 +2690,7 @@ fn provider_authorized_evidence_runbook_diagnostics(provider: ProbeProvider) -> 
     lines.join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_sanitized_evidence_output_template_diagnostics(provider: ProbeProvider) -> String {
     [
         "sanitized_evidence_output_template_version=1".to_owned(),
@@ -2694,6 +2712,7 @@ fn provider_sanitized_evidence_output_template_diagnostics(provider: ProbeProvid
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_sanitized_evidence_bundle_validator_diagnostics(provider: ProbeProvider) -> String {
     [
         "sanitized_evidence_bundle_validator_version=1".to_owned(),
@@ -2720,6 +2739,7 @@ fn provider_sanitized_evidence_bundle_validator_diagnostics(provider: ProbeProvi
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_release_elevation_preflight_diagnostics(provider: ProbeProvider) -> String {
     [
         "release_elevation_preflight_version=1".to_owned(),
@@ -2738,6 +2758,7 @@ fn provider_release_elevation_preflight_diagnostics(provider: ProbeProvider) -> 
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_w5_observe_adapter_contract_diagnostics(provider: ProbeProvider) -> String {
     [
         "w5_observe_adapter_contract_version=1".to_owned(),
@@ -2811,6 +2832,7 @@ fn probe_card_execution_phases() -> [ProbeCardExecutionPhase; 10] {
     ]
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_probe_card_execution_plan_diagnostics(provider: ProbeProvider) -> String {
     let mut lines = vec![
         "probe_card_execution_plan_version=1".to_owned(),
@@ -2834,6 +2856,7 @@ fn provider_probe_card_execution_plan_diagnostics(provider: ProbeProvider) -> St
     lines.join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_evidence_retention_policy_diagnostics() -> String {
     [
         "evidence_retention_policy_version=1".to_owned(),
@@ -2859,6 +2882,7 @@ fn provider_evidence_retention_policy_diagnostics() -> String {
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_live_authorization_preflight_diagnostics(provider: ProbeProvider) -> String {
     [
         "live_authorization_preflight_version=1".to_owned(),
@@ -2879,6 +2903,7 @@ fn provider_live_authorization_preflight_diagnostics(provider: ProbeProvider) ->
     .join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_missing_capability_rationale_diagnostics(provider: ProbeProvider) -> String {
     let mut lines = vec![
         "missing_capability_rationale_version=1".to_owned(),
@@ -2924,6 +2949,7 @@ fn provider_capability_matrix_diagnostics(provider: ProbeProvider) -> String {
     lines.join("\n")
 }
 
+#[deprecated(note = "W4 scopedown: meta-info scaffold. Use direct probe evidence instead.")]
 fn provider_release_decision_log_diagnostics(provider: ProbeProvider) -> String {
     [
         "release_decision_log_version=1".to_owned(),
